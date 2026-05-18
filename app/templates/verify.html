@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}验证邮箱 — static.jaschen.life{% endblock %}
+{% block content %}
+
+<div class="card" style="max-width:420px; margin:0 auto;">
+
+{% if success %}
+
+  <h2>API Key 已生成</h2>
+  <p>以下密钥<span style="color:var(--danger)">仅显示一次</span>，请立即复制保存：</p>
+
+  <div class="api-key-display">
+    <code>{{ api_key }}</code>
+  </div>
+
+  <div style="margin-top:1rem;">
+    <p><strong>配置 CLI：</strong></p>
+<pre><code>staticcli set-key {{ api_key }}</code></pre>
+    <a href="/dashboard" class="btn btn-primary" style="margin-top:.5rem;">进入管理面板</a>
+  </div>
+
+{% else %}
+
+  <h2>验证邮箱</h2>
+  <p>验证码已发送到 <strong>{{ email }}</strong></p>
+  <p class="hint">如未收到，请检查垃圾邮件</p>
+
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+
+  <form action="/verify" method="POST">
+    <input type="hidden" name="email" value="{{ email }}">
+    <div class="form-group">
+      <label for="token">验证码</label>
+      <input type="text" id="token" name="token" placeholder="6 位数字" maxlength="6" required autofocus>
+    </div>
+    <button type="submit" class="btn btn-primary">验证</button>
+  </form>
+
+{% endif %}
+</div>
+
+{% endblock %}

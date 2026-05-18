@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}static.jaschen.life — 首页{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <h1>static.jaschen.life</h1>
+  <p class="subtitle">极简静态 HTML 托管 · 一行命令发布</p>
+</div>
+
+<div class="card">
+  <h2>创建 API Key</h2>
+  <p>输入邮箱，收取验证码，即可生成。</p>
+
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+
+  <form action="/" method="POST">
+    <div class="form-group">
+      <label for="email">邮箱地址</label>
+      <input type="email" id="email" name="email" placeholder="you@example.com" required autofocus>
+    </div>
+    <button type="submit" class="btn btn-primary">发送验证码</button>
+  </form>
+</div>
+
+<div class="card card-cli">
+  <h2>安装 CLI</h2>
+<pre><code>mkdir -p ~/.local/bin && curl -sSL https://static.jaschen.life/cli -o ~/.local/bin/staticcli && chmod +x ~/.local/bin/staticcli && export PATH="$HOME/.local/bin:$PATH" && echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc</code></pre>
+</div>
+
+<div class="card">
+  <h2>使用流程</h2>
+  <div class="steps">
+    <div class="step">
+      <span class="step-num">1</span>
+      <div>
+        <strong>获取 API Key</strong>
+        <p>在上面输入邮箱，查收验证码</p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-num">2</span>
+      <div>
+        <strong>配置 CLI</strong>
+        <p><code>staticcli set-key sk_xxx</code></p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-num">3</span>
+      <div>
+        <strong>发布 HTML</strong>
+        <p><code>staticcli publish index.html</code></p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-num">4</span>
+      <div>
+        <strong>获得永久短链</strong>
+        <p>如 <code>https://static.jaschen.life/AbCdEf12</code></p>
+      </div>
+    </div>
+  </div>
+
+  <p class="hint" style="margin-top:.75rem">
+    已有 Key？<a href="/login">登录管理面板 →</a>
+  </p>
+</div>
+
+{% endblock %}

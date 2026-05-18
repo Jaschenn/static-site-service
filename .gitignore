@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+*.egg-info/
+
+# Data
+data/
+
+# Env
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+*.log

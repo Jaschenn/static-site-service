@@ -1,0 +1,13 @@
+services:
+  app:
+    build:
+      context: ./app
+      network: host
+    container_name: static-site-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8000"
+    volumes:
+      - ./data:/data
+    env_file:
+      - .env

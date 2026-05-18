@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}管理面板 — static.jaschen.life{% endblock %}
+{% block content %}
+
+<div class="header-bar">
+  <h1>我的站点</h1>
+  <div class="user-info">
+    <span>{{ email }}</span>
+    <a href="/logout" class="btn btn-ghost">退出</a>
+  </div>
+</div>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success">{{ success }}</div>
+{% endif %}
+
+{% if sites %}
+
+<div class="site-list">
+  {% for site in sites %}
+  <div class="site-item">
+    <div class="site-info">
+      <div class="site-title">{{ site.title }}</div>
+      <div class="site-meta">
+        <a href="{{ site.url }}" target="_blank" class="site-url">{{ site.shortcode }}</a>
+        <span>{{ "%.1f"|format(site.size_bytes / 1024) }} KB</span>
+        <span>{{ site.created_at }}</span>
+      </div>
+    </div>
+    <div class="site-actions">
+      <a href="{{ site.url }}" target="_blank" class="btn btn-ghost">访问</a>
+      <form action="/delete/{{ site.shortcode }}" method="POST" style="display:inline" onsubmit="return confirm('确定删除 {{ site.shortcode }}？此操作不可撤销。')">
+        <button type="submit" class="btn btn-danger">删除</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+
+<div class="card" style="text-align:center;">
+  <p style="font-size:1rem; margin-bottom:.5rem;">还没有发布任何站点</p>
+  <p class="hint">在终端执行：</p>
+<pre><code>staticcli publish index.html</code></pre>
+</div>
+
+{% endif %}
+
+{% endblock %}
