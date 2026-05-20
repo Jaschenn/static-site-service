@@ -109,7 +109,7 @@ async def index(request: Request):
 
 
 @router.post("/", response_class=HTMLResponse)
-async def index_submit(request: Request, email: str = Form(...), csrf_token: str = Form(...)):
+async def index_submit(request: Request, email: str = Form(...), csrf_token: str = Form("")):
     """首页提交邮箱 → 发送验证码 → 跳转验证页"""
     import re
 
@@ -176,7 +176,7 @@ async def verify_submit(
     request: Request,
     email: str = Form(...),
     token: str = Form(...),
-    csrf_token: str = Form(...),
+    csrf_token: str = Form(""),
 ):
     """验证提交 → 显示 API Key"""
     try:
@@ -262,7 +262,7 @@ async def login_submit(
     request: Request,
     email: str = Form(...),
     key: str = Form(...),
-    csrf_token: str = Form(...),
+    csrf_token: str = Form(""),
 ):
     """登录提交"""
     session = get_session(request)
