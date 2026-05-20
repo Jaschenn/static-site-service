@@ -34,6 +34,7 @@
     <div class="site-actions">
       <a href="{{ site.url }}" target="_blank" class="btn btn-ghost">访问</a>
       <form action="/delete/{{ site.shortcode }}" method="POST" style="display:inline" onsubmit="return confirm('确定删除 {{ site.shortcode }}？此操作不可撤销。')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn btn-danger">删除</button>
       </form>
     </div>

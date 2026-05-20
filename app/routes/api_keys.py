@@ -1,13 +1,20 @@
 """API Key 管理路由"""
 import re
 import secrets
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr
+
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 from database import get_db
-from services.email import generate_token, token_expires_at, send_verification_email
+from ratelimit import RateLimiter
+from services.email import generate_token, send_verification_email, token_expires_at
 
 router = APIRouter(prefix="/api/keys", tags=["keys"])
+
+# 速率限制
+send_limiter = RateLimiter(max_requests=3, window_seconds=60)       # 每 IP 每分钟 3 次发邮件
+verify_limiter = RateLimiter(max_requests=10, window_seconds=60)    # 每 IP 每分钟 10 次验证
+verify_email_limiter = RateLimiter(max_requests=5, window_seconds=600)  # 每邮箱 10 分钟 5 次
 
 
 class CreateKeyRequest(BaseModel):
@@ -25,8 +32,9 @@ def generate_api_key() -> str:
 
 
 @router.post("")
-async def create_key(req: CreateKeyRequest):
+async def create_key(req: CreateKeyRequest, request: Request):
     """提交邮箱，发送验证码"""
+    await send_limiter(request)
 
     email = req.email.strip().lower()
 
@@ -53,8 +61,10 @@ async def create_key(req: CreateKeyRequest):
 
 
 @router.post("/verify")
-async def verify_key(req: VerifyKeyRequest):
+async def verify_key(req: VerifyKeyRequest, request: Request):
     """验证邮箱，返回 API Key"""
+    await verify_limiter(request)
+    verify_email_limiter.check_key(req.email.strip().lower())
 
     email = req.email.strip().lower()
     token = req.token.strip()

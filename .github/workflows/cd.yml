@@ -1,0 +1,40 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.REMOTE_DIR }}
+
+            echo ">>> Pulling latest code..."
+            git pull origin main
+
+            echo ">>> Rebuilding and restarting containers..."
+            docker compose up -d --build
+
+            echo ">>> Cleaning up old images..."
+            docker image prune -f
+
+            echo ">>> Waiting for health check..."
+            sleep 3
+            curl -f -s -o /dev/null https://static.jaschen.life/404 && echo "Health check OK" || echo "Health check FAILED"

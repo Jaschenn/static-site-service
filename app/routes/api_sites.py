@@ -1,12 +1,12 @@
 """站点发布与管理路由"""
 import os
 import re
-from fastapi import APIRouter, HTTPException, Request, Response
-from fastapi.responses import PlainTextResponse
 
+from fastapi import APIRouter, HTTPException, Request
+
+from config import MAX_UPLOAD_SIZE, SITES_DIR
 from database import get_db
 from services.shortcode import generate_shortcode
-from config import SITES_DIR, MAX_UPLOAD_SIZE
 
 router = APIRouter(prefix="/api/sites", tags=["sites"])
 
@@ -65,8 +65,8 @@ async def publish_site(request: Request):
 
     try:
         html = body.decode("utf-8")
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="内容必须是有效的 UTF-8 文本")
+    except UnicodeDecodeError as e:
+        raise HTTPException(status_code=400, detail="内容必须是有效的 UTF-8 文本") from e
 
     # 验证简单 HTML（至少包含 <html 或常见标签）
     if not re.search(r"<(!DOCTYPE|html|body|head|div|p|h[1-6]|span|a)\b", html, re.IGNORECASE):

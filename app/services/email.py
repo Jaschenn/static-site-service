@@ -1,8 +1,9 @@
 import secrets
 import smtplib
+from datetime import UTC, datetime, timedelta
 from email.mime.text import MIMEText
-from datetime import datetime, timedelta, timezone
-from config import MOCK_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, TOKEN_EXPIRY
+
+from config import MOCK_EMAIL, SMTP_FROM, SMTP_HOST, SMTP_PASS, SMTP_PORT, SMTP_USER, TOKEN_EXPIRY
 
 
 def generate_token() -> str:
@@ -12,7 +13,7 @@ def generate_token() -> str:
 
 def token_expires_at() -> str:
     """验证码过期时间 (ISO 8601)"""
-    expires = datetime.now(timezone.utc) + timedelta(seconds=TOKEN_EXPIRY)
+    expires = datetime.now(UTC) + timedelta(seconds=TOKEN_EXPIRY)
     return expires.isoformat()
 
 

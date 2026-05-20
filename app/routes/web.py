@@ -2,13 +2,15 @@
 import hashlib
 import hmac
 import json
+import secrets
 import time
-from fastapi import APIRouter, Request, Form
+
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from database import get_db
 from config import SESSION_SECRET
+from database import get_db
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory="templates")
@@ -18,14 +20,19 @@ SESSION_TTL = 3600  # 1 小时
 
 
 def make_session(email: str) -> str:
-    """创建 session token"""
-    payload = json.dumps({"email": email, "exp": int(time.time()) + SESSION_TTL})
+    """创建 session token（含 CSRF token）"""
+    csrf = secrets.token_hex(32)
+    payload = json.dumps({
+        "email": email,
+        "exp": int(time.time()) + SESSION_TTL,
+        "csrf": csrf,
+    })
     sig = hmac.new(SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
     return f"{payload}:{sig}"
 
 
-def verify_session(token: str) -> str | None:
-    """验证 session token，返回 email 或 None"""
+def verify_session(token: str) -> dict | None:
+    """验证 session token，返回 payload 或 None"""
     try:
         payload, sig = token.rsplit(":", 1)
         expected = hmac.new(SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
@@ -34,17 +41,53 @@ def verify_session(token: str) -> str | None:
         data = json.loads(payload)
         if data["exp"] < time.time():
             return None
-        return data["email"]
+        return data
     except Exception:
         return None
 
 
-def get_session_email(request: Request) -> str | None:
-    """从 cookie 获取当前用户 email"""
+def get_session(request: Request) -> dict | None:
+    """从 cookie 获取 session payload"""
     token = request.cookies.get("session")
     if not token:
         return None
     return verify_session(token)
+
+
+def get_session_email(request: Request) -> str | None:
+    """从 cookie 获取当前用户 email"""
+    data = get_session(request)
+    return data["email"] if data else None
+
+
+def get_csrf_token(request: Request) -> str:
+    """从 session 获取 CSRF token，无 session 时返回空字符串"""
+    data = get_session(request)
+    return data["csrf"] if data else ""
+
+
+COOKIE_OPTS = {
+    "max_age": SESSION_TTL,
+    "httponly": True,
+    "samesite": "lax",
+    "secure": True,
+}
+
+
+def _set_session_cookie(resp, email: str):
+    resp.set_cookie(key="session", value=make_session(email), **COOKIE_OPTS)
+
+
+def _require_csrf(request: Request, form_data: dict):
+    """验证 CSRF token，不通过则抛 403。
+    注意：如果还没有 session，允许通过（验证码是独立防线）。"""
+    session = get_session(request)
+    if not session:
+        return  # 无 session 时不强制 CSRF（验证码 / API Key 校验是独立防线）
+    expected = session.get("csrf", "")
+    submitted = form_data.get("csrf_token", "")
+    if not hmac.compare_digest(submitted, expected):
+        raise HTTPException(status_code=403, detail="CSRF 验证失败")
 
 
 # ─── 页面路由 ───
@@ -53,19 +96,31 @@ def get_session_email(request: Request) -> str | None:
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """首页"""
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse(request, "index.html", {
+        "csrf_token": get_csrf_token(request),
+    })
 
 
 @router.post("/", response_class=HTMLResponse)
-async def index_submit(request: Request, email: str = Form(...)):
+async def index_submit(request: Request, email: str = Form(...), csrf_token: str = Form(...)):
     """首页提交邮箱 → 发送验证码 → 跳转验证页"""
     import re
+
+    session = get_session(request)
+    if session and not hmac.compare_digest(csrf_token, session.get("csrf", "")):
+        return templates.TemplateResponse(request, "index.html", {
+            "error": "CSRF 验证失败", "csrf_token": session.get("csrf", ""),
+        })
+
     email = email.strip().lower()
     if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
-        return templates.TemplateResponse(request, "index.html", {"error": "邮箱格式不正确"})
+        return templates.TemplateResponse(request, "index.html", {
+            "error": "邮箱格式不正确",
+            "csrf_token": get_csrf_token(request),
+        })
 
     # 调用 API key 创建逻辑（直接内联，避免 HTTP 调用）
-    from services.email import generate_token, token_expires_at, send_verification_email
+    from services.email import generate_token, send_verification_email, token_expires_at
 
     token = generate_token()
     expires_at = token_expires_at()
@@ -82,23 +137,40 @@ async def index_submit(request: Request, email: str = Form(...)):
 
     send_verification_email(email, token)
 
-    return RedirectResponse(f"/verify?email={email}", status_code=303)
+    resp = RedirectResponse(f"/verify?email={email}", status_code=303)
+    _set_session_cookie(resp, email)  # 提前设 session，使 verify 页的 CSRF 校验生效
+    return resp
 
 
 @router.get("/verify", response_class=HTMLResponse)
 async def verify_page(request: Request, email: str = ""):
     """验证页"""
-    return templates.TemplateResponse(request, "verify.html", {"email": email})
+    return templates.TemplateResponse(request, "verify.html", {
+        "email": email,
+        "csrf_token": get_csrf_token(request),
+    })
 
 
 @router.post("/verify", response_class=HTMLResponse)
-async def verify_submit(request: Request, email: str = Form(...), token: str = Form(...)):
+async def verify_submit(
+    request: Request,
+    email: str = Form(...),
+    token: str = Form(...),
+    csrf_token: str = Form(...),
+):
     """验证提交 → 显示 API Key"""
+    try:
+        _require_csrf(request, {"csrf_token": csrf_token})
+    except HTTPException:
+        return templates.TemplateResponse(request, "verify.html", {
+            "email": email,
+            "error": "CSRF 验证失败，请刷新页面重试",
+            "csrf_token": get_csrf_token(request),
+        })
+
     email = email.strip().lower()
     token = token.strip()
 
-    # 调用验证逻辑
-    import secrets as sec
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -112,7 +184,8 @@ async def verify_submit(request: Request, email: str = Form(...), token: str = F
         if not row:
             return templates.TemplateResponse(request, "verify.html", {
                 "email": email,
-                "error": "验证码无效或已过期"
+                "error": "验证码无效或已过期",
+                "csrf_token": get_csrf_token(request),
             })
 
         await db.execute("UPDATE verification_tokens SET used = 1 WHERE id = ?", (row["id"],))
@@ -120,7 +193,7 @@ async def verify_submit(request: Request, email: str = Form(...), token: str = F
             "INSERT INTO users (email, verified) VALUES (?, 1) ON CONFLICT(email) DO UPDATE SET verified = 1",
             (email,),
         )
-        api_key = "sk_" + sec.token_hex(16)
+        api_key = "sk_" + secrets.token_hex(16)
         await db.execute("INSERT INTO api_keys (key, email) VALUES (?, ?)", (api_key, email))
         await db.commit()
     finally:
@@ -131,14 +204,9 @@ async def verify_submit(request: Request, email: str = Form(...), token: str = F
         "email": email,
         "api_key": api_key,
         "success": True,
+        "csrf_token": get_csrf_token(request),
     })
-    resp.set_cookie(
-        key="session",
-        value=make_session(email),
-        max_age=SESSION_TTL,
-        httponly=True,
-        samesite="lax",
-    )
+    _set_session_cookie(resp, email)
     return resp
 
 
@@ -148,12 +216,26 @@ async def login_page(request: Request):
     email = get_session_email(request)
     if email:
         return RedirectResponse("/dashboard", status_code=303)
-    return templates.TemplateResponse(request, "login.html")
+    return templates.TemplateResponse(request, "login.html", {
+        "csrf_token": get_csrf_token(request),
+    })
 
 
 @router.post("/login", response_class=HTMLResponse)
-async def login_submit(request: Request, email: str = Form(...), key: str = Form(...)):
+async def login_submit(
+    request: Request,
+    email: str = Form(...),
+    key: str = Form(...),
+    csrf_token: str = Form(...),
+):
     """登录提交"""
+    session = get_session(request)
+    if session and not hmac.compare_digest(csrf_token, session.get("csrf", "")):
+        return templates.TemplateResponse(request, "login.html", {
+            "error": "CSRF 验证失败",
+            "csrf_token": session.get("csrf", ""),
+        })
+
     email = email.strip().lower()
     key = key.strip()
 
@@ -165,19 +247,14 @@ async def login_submit(request: Request, email: str = Form(...), key: str = Form
         )
         if not await cursor.fetchone():
             return templates.TemplateResponse(request, "login.html", {
-                "error": "邮箱与 API Key 不匹配"
+                "error": "邮箱与 API Key 不匹配",
+                "csrf_token": get_csrf_token(request),
             })
     finally:
         await db.close()
 
     resp = RedirectResponse("/dashboard", status_code=303)
-    resp.set_cookie(
-        key="session",
-        value=make_session(email),
-        max_age=SESSION_TTL,
-        httponly=True,
-        samesite="lax",
-    )
+    _set_session_cookie(resp, email)
     return resp
 
 
@@ -208,6 +285,7 @@ async def dashboard(request: Request):
 
     return templates.TemplateResponse(request, "dashboard.html", {
         "email": email, "sites": sites,
+        "csrf_token": get_csrf_token(request),
     })
 
 
@@ -218,7 +296,15 @@ async def delete_site_web(shortcode: str, request: Request):
     if not email:
         return RedirectResponse("/login", status_code=303)
 
-    import os, re
+    form_data = await request.form()
+    try:
+        _require_csrf(request, dict(form_data))
+    except HTTPException:
+        return RedirectResponse("/dashboard?error=csrf", status_code=303)
+
+    import os
+    import re
+
     from config import SITES_DIR
 
     if not re.match(r"^[a-zA-Z0-9]{8}$", shortcode):
@@ -246,7 +332,7 @@ async def delete_site_web(shortcode: str, request: Request):
 async def logout():
     """退出登录"""
     resp = RedirectResponse("/", status_code=303)
-    resp.delete_cookie("session")
+    resp.delete_cookie("session", secure=True)
     return resp
 
 

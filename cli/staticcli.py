@@ -14,8 +14,8 @@
 import json
 import os
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 
 CONFIG_DIR = os.path.expanduser("~/.staticcli")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
@@ -105,7 +105,7 @@ def cmd_publish(args):
             die(f"文件不存在: {filepath}")
         if os.path.getsize(filepath) > 4 * 1024 * 1024:
             die("文件超过 4MB 限制")
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8") as f:
             html = f.read()
     elif not sys.stdin.isatty():
         html = sys.stdin.read()
@@ -119,7 +119,7 @@ def cmd_publish(args):
         "Content-Type": "text/html; charset=utf-8",
     }, body=html)
 
-    print(f"✅ 发布成功！")
+    print("✅ 发布成功！")
     print(f"   URL:    {result['url']}")
     print(f"   短码:   {result['shortcode']}")
     if result.get("title"):

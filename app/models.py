@@ -1,5 +1,4 @@
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 
 @dataclass
@@ -23,7 +22,7 @@ class VerificationToken:
     token: str
     expires_at: str
     used: bool = False
-    id: Optional[int] = None
+    id: int | None = None
 
     @classmethod
     def from_row(cls, row):

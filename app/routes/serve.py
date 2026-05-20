@@ -1,10 +1,10 @@
 """静态页面 Serve 路由"""
 import os
 import re
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
-from database import get_db
 from config import SITES_DIR
 
 router = APIRouter(tags=["serve"])
@@ -25,7 +25,8 @@ async def not_found_page():
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>404 - 页面不存在</title>
 <style>
-body { font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #fafafa; }
+body { font-family: -apple-system, sans-serif; display: flex; justify-content: center;
+align-items: center; min-height: 100vh; margin: 0; background: #fafafa; }
 .box { text-align: center; }
 h1 { font-size: 4rem; margin: 0; color: #333; }
 p { color: #666; }
@@ -63,7 +64,20 @@ async def serve_site(shortcode: str):
         raise HTTPException(status_code=404, detail="页面不存在")
 
     # 读文件
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         html = f.read()
 
-    return HTMLResponse(content=html)
+    return HTMLResponse(
+        content=html,
+        headers={
+            "Content-Security-Policy": (
+                "default-src 'none'; "
+                "style-src 'unsafe-inline' https:; "
+                "img-src data: https:; "
+                "script-src 'none'; "
+                "frame-ancestors 'none'; "
+                "base-uri 'none'; "
+                "form-action 'none'"
+            ),
+        },
+    )
