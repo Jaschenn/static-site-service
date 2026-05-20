@@ -7,6 +7,7 @@
   staticcli config                查看当前配置
   staticcli publish <file>        发布 HTML 文件
   staticcli publish --html "..."  直接发布 HTML
+  staticcli publish <file> --password <pwd>  发布并设置密码保护
   staticcli list                  列出我的站点
   staticcli delete <shortcode>    删除站点
 """
@@ -97,6 +98,23 @@ def cmd_publish(args):
     if not key:
         die("请先配置 API Key: staticcli set-key <key>")
 
+    # 解析 --password flag
+    password = None
+    filtered_args = []
+    skip_next = False
+    for i, a in enumerate(args):
+        if skip_next:
+            skip_next = False
+            continue
+        if a == "--password":
+            if i + 1 >= len(args):
+                die("--password 需要提供密码值")
+            password = args[i + 1]
+            skip_next = True
+        else:
+            filtered_args.append(a)
+    args = filtered_args
+
     if len(args) >= 2 and args[0] == "--html":
         html = args[1]
     elif len(args) >= 1:
@@ -114,13 +132,17 @@ def cmd_publish(args):
 
     print(f"📤 正在发布... ({len(html.encode('utf-8')) / 1024:.1f} KB)")
 
+    headers = {
+        "X-API-Key": key,
+        "Content-Type": "text/html; charset=utf-8",
+    }
+    if password:
+        headers["X-Site-Password"] = password
+
     result = api_request(
         "POST",
         "/api/sites",
-        headers={
-            "X-API-Key": key,
-            "Content-Type": "text/html; charset=utf-8",
-        },
+        headers=headers,
         body=html,
     )
 
@@ -129,6 +151,8 @@ def cmd_publish(args):
     print(f"   短码:   {result['shortcode']}")
     if result.get("title"):
         print(f"   标题:   {result['title']}")
+    if result.get("has_password"):
+        print("   🔒 密码保护已启用")
 
 
 def cmd_list(args):
@@ -158,7 +182,8 @@ def cmd_list(args):
     for s in sites:
         title = s["title"] or "无标题"
         size = f"{s['size_bytes'] / 1024:.1f} KB"
-        print(f"  [{s['shortcode']}] {title}")
+        lock = " 🔒" if s.get("has_password") else ""
+        print(f"  [{s['shortcode']}]{lock} {title}")
         print(f"  → {s['url']}  ({size})  {s['created_at']}")
         print()
 
@@ -206,6 +231,7 @@ HELP_TEXT = """staticcli — static.jaschen.life CLI
   config                 查看当前配置
   publish <file>         发布 HTML 文件
   publish --html "..."   直接发布 HTML 字符串
+  publish <file> --password <pwd>  发布并设置密码保护
   list                   列出所有已发布站点
   delete <shortcode>     删除站点
 
