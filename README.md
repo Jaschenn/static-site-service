@@ -10,8 +10,9 @@ staticcli publish index.html
 ## 功能
 
 - **REST API** — 程序化发布、列出、删除静态 HTML 页面
+- **密码保护** — 发布时可设置密码，访问者需输入密码才能查看（PBKDF2 哈希 + HMAC cookie）
 - **Web 管理面板** — 浏览器端管理站点，邮箱 + 验证码注册
-- **CLI 工具** — 终端一行命令发布，支持文件、stdin、直接 HTML 字符串
+- **CLI 工具** — 终端一行命令发布，支持文件、stdin、直接 HTML 字符串、密码保护
 - **8 字符短链接** — 密码学随机生成，永久有效
 - **零外部服务依赖** — SQLite 存储，文件系统存放 HTML
 
@@ -54,7 +55,10 @@ staticcli set-email you@example.com
 echo '<html><body><h1>Hello World</h1></body></html>' > hello.html
 staticcli publish hello.html
 
-# 4. 访问输出的 URL
+# 发布带密码保护的页面
+staticcli publish secret.html --password mypassword
+
+# 4. 访问输出的 URL（有密码的页面需先解锁）
 ```
 
 ## 架构
@@ -95,11 +99,13 @@ app/
 │   └── serve.py         # 短链接内容 Serve
 ├── services/
 │   ├── email.py         # 验证码邮件
-│   └── shortcode.py     # 短链接生成
-├── templates/           # Jinja2 模板
+│   ├── shortcode.py     # 短链接生成
+│   └── password.py      # 密码哈希 + 解锁 cookie
+├── templates/           # Jinja2 模板（含 unlock.html）
 └── static/              # CSS 等静态资源
 cli/
 └── staticcli.py         # 独立 CLI 工具
+.github/workflows/       # CI/CD（ruff + Docker 构建 + SSH 部署）
 ```
 
 ### 技术栈
@@ -142,12 +148,14 @@ Content-Type: application/json
 ```http
 POST /api/sites
 X-API-Key: sk_xxx
+X-Site-Password: mypassword    （可选，设置密码保护）
 Content-Type: text/html
 
 <!DOCTYPE html>...
 ```
 
-返回 `{"shortcode": "AbCdEf12", "url": "https://static.jaschen.life/AbCdEf12"}`。
+返回 `{"shortcode": "AbCdEf12", "url": "...", "has_password": true}`。
+不设 `X-Site-Password` 则页面公开访问。
 
 ### 列出站点
 
@@ -180,7 +188,8 @@ X-Email: you@example.com
 | `SMTP_PASS` | — | SMTP 密码 |
 | `SMTP_FROM` | `noreply@static.jaschen.life` | 发件人 |
 | `TOKEN_EXPIRY` | `600` | 验证码有效期（秒） |
-| `SESSION_SECRET` | `change-me-in-production` | Session HMAC 密钥 |
+| `SESSION_SECRET` | `change-me-in-production` | Session / unlock cookie HMAC 密钥 |
+| `UNLOCK_TTL` | `86400` | 解锁 cookie 有效期（秒），默认 24 小时 |
 
 ## 部署
 
@@ -199,8 +208,8 @@ docker compose up -d
 
 推送代码到 `main` 分支后，GitHub Actions 自动：
 
-1. **CI** — ruff 代码检查 + Docker 构建验证
-2. **CD** — SSH 到服务器 → git pull → `docker compose up -d --build`
+1. **CI** — ruff lint + format check + Python 语法检查 + Docker 构建验证
+2. **CD** — SSH 到服务器 → git pull → Docker 重建 → 更新 nginx 配置并 reload → 健康检查
 
 需要配置 GitHub Secrets：
 
