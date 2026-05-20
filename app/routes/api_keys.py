@@ -1,4 +1,5 @@
 """API Key 管理路由"""
+
 import re
 import secrets
 
@@ -12,8 +13,8 @@ from services.email import generate_token, send_verification_email, token_expire
 router = APIRouter(prefix="/api/keys", tags=["keys"])
 
 # 速率限制
-send_limiter = RateLimiter(max_requests=3, window_seconds=60)       # 每 IP 每分钟 3 次发邮件
-verify_limiter = RateLimiter(max_requests=10, window_seconds=60)    # 每 IP 每分钟 10 次验证
+send_limiter = RateLimiter(max_requests=3, window_seconds=60)  # 每 IP 每分钟 3 次发邮件
+verify_limiter = RateLimiter(max_requests=10, window_seconds=60)  # 每 IP 每分钟 10 次验证
 verify_email_limiter = RateLimiter(max_requests=5, window_seconds=600)  # 每邮箱 10 分钟 5 次
 
 
@@ -91,8 +92,7 @@ async def verify_key(req: VerifyKeyRequest, request: Request):
 
         # 创建或更新用户
         await db.execute(
-            "INSERT INTO users (email, verified) VALUES (?, 1) "
-            "ON CONFLICT(email) DO UPDATE SET verified = 1",
+            "INSERT INTO users (email, verified) VALUES (?, 1) ON CONFLICT(email) DO UPDATE SET verified = 1",
             (email,),
         )
 

@@ -1,4 +1,5 @@
 """In-memory rate limiting for API endpoints."""
+
 import time
 from collections import defaultdict
 

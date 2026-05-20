@@ -1,4 +1,5 @@
 """静态页面 Serve 路由"""
+
 import os
 import re
 
@@ -10,8 +11,19 @@ from config import SITES_DIR
 router = APIRouter(tags=["serve"])
 
 # 保留路径，避免与 Web UI 冲突
-RESERVED_PATHS = {"login", "dashboard", "verify", "logout", "404", "api",
-                  "favicon.ico", "robots.txt", "static", "delete", "health"}
+RESERVED_PATHS = {
+    "login",
+    "dashboard",
+    "verify",
+    "logout",
+    "404",
+    "api",
+    "favicon.ico",
+    "robots.txt",
+    "static",
+    "delete",
+    "health",
+}
 
 
 @router.get("/404")

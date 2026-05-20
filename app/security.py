@@ -1,4 +1,5 @@
 """Security headers middleware."""
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 

@@ -1,4 +1,5 @@
 """static.jaschen.life — 静态站托管服务"""
+
 import os
 from contextlib import asynccontextmanager
 

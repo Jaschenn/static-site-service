@@ -110,14 +110,19 @@ def cmd_publish(args):
     elif not sys.stdin.isatty():
         html = sys.stdin.read()
     else:
-        die("用法: staticcli publish <file> 或 staticcli publish --html \"...\" 或 cat file.html | staticcli publish")
+        die('用法: staticcli publish <file> 或 staticcli publish --html "..." 或 cat file.html | staticcli publish')
 
     print(f"📤 正在发布... ({len(html.encode('utf-8')) / 1024:.1f} KB)")
 
-    result = api_request("POST", "/api/sites", headers={
-        "X-API-Key": key,
-        "Content-Type": "text/html; charset=utf-8",
-    }, body=html)
+    result = api_request(
+        "POST",
+        "/api/sites",
+        headers={
+            "X-API-Key": key,
+            "Content-Type": "text/html; charset=utf-8",
+        },
+        body=html,
+    )
 
     print("✅ 发布成功！")
     print(f"   URL:    {result['url']}")
@@ -134,10 +139,14 @@ def cmd_list(args):
     if not key or not email:
         die("请先配置: staticcli set-key <key> && staticcli set-email <email>")
 
-    result = api_request("GET", "/api/sites", headers={
-        "X-API-Key": key,
-        "X-Email": email,
-    })
+    result = api_request(
+        "GET",
+        "/api/sites",
+        headers={
+            "X-API-Key": key,
+            "X-Email": email,
+        },
+    )
 
     sites = result.get("sites", [])
     if not sites:
@@ -168,10 +177,14 @@ def cmd_delete(args):
 
     print(f"🗑️  正在删除 {shortcode}...")
 
-    result = api_request("DELETE", f"/api/sites/{shortcode}", headers={
-        "X-API-Key": key,
-        "X-Email": email,
-    })
+    result = api_request(
+        "DELETE",
+        f"/api/sites/{shortcode}",
+        headers={
+            "X-API-Key": key,
+            "X-Email": email,
+        },
+    )
 
     print(f"✅ {result['message']}")
 

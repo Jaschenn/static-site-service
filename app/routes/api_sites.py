@@ -1,4 +1,5 @@
 """站点发布与管理路由"""
+
 import os
 import re
 
@@ -15,9 +16,7 @@ async def verify_api_key(key: str):
     """验证 API Key 是否有效，返回 email"""
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT email FROM api_keys WHERE key = ?", (key,)
-        )
+        cursor = await db.execute("SELECT email FROM api_keys WHERE key = ?", (key,))
         row = await cursor.fetchone()
         if not row:
             raise HTTPException(status_code=401, detail="API Key 无效")
@@ -139,13 +138,15 @@ async def list_sites(request: Request):
 
         sites = []
         for row in rows:
-            sites.append({
-                "shortcode": row["shortcode"],
-                "url": f"https://static.jaschen.life/{row['shortcode']}",
-                "title": row["title"],
-                "size_bytes": row["size_bytes"],
-                "created_at": row["created_at"],
-            })
+            sites.append(
+                {
+                    "shortcode": row["shortcode"],
+                    "url": f"https://static.jaschen.life/{row['shortcode']}",
+                    "title": row["title"],
+                    "size_bytes": row["size_bytes"],
+                    "created_at": row["created_at"],
+                }
+            )
 
         return {"sites": sites, "total": len(sites)}
     finally:

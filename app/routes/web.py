@@ -1,4 +1,5 @@
 """Web UI 路由"""
+
 import hashlib
 import hmac
 import json
@@ -22,11 +23,13 @@ SESSION_TTL = 3600  # 1 小时
 def make_session(email: str) -> str:
     """创建 session token（含 CSRF token）"""
     csrf = secrets.token_hex(32)
-    payload = json.dumps({
-        "email": email,
-        "exp": int(time.time()) + SESSION_TTL,
-        "csrf": csrf,
-    })
+    payload = json.dumps(
+        {
+            "email": email,
+            "exp": int(time.time()) + SESSION_TTL,
+            "csrf": csrf,
+        }
+    )
     sig = hmac.new(SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
     return f"{payload}:{sig}"
 
@@ -96,9 +99,13 @@ def _require_csrf(request: Request, form_data: dict):
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """首页"""
-    return templates.TemplateResponse(request, "index.html", {
-        "csrf_token": get_csrf_token(request),
-    })
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "csrf_token": get_csrf_token(request),
+        },
+    )
 
 
 @router.post("/", response_class=HTMLResponse)
@@ -108,16 +115,25 @@ async def index_submit(request: Request, email: str = Form(...), csrf_token: str
 
     session = get_session(request)
     if session and not hmac.compare_digest(csrf_token, session.get("csrf", "")):
-        return templates.TemplateResponse(request, "index.html", {
-            "error": "CSRF 验证失败", "csrf_token": session.get("csrf", ""),
-        })
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            {
+                "error": "CSRF 验证失败",
+                "csrf_token": session.get("csrf", ""),
+            },
+        )
 
     email = email.strip().lower()
     if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
-        return templates.TemplateResponse(request, "index.html", {
-            "error": "邮箱格式不正确",
-            "csrf_token": get_csrf_token(request),
-        })
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            {
+                "error": "邮箱格式不正确",
+                "csrf_token": get_csrf_token(request),
+            },
+        )
 
     # 调用 API key 创建逻辑（直接内联，避免 HTTP 调用）
     from services.email import generate_token, send_verification_email, token_expires_at
@@ -145,10 +161,14 @@ async def index_submit(request: Request, email: str = Form(...), csrf_token: str
 @router.get("/verify", response_class=HTMLResponse)
 async def verify_page(request: Request, email: str = ""):
     """验证页"""
-    return templates.TemplateResponse(request, "verify.html", {
-        "email": email,
-        "csrf_token": get_csrf_token(request),
-    })
+    return templates.TemplateResponse(
+        request,
+        "verify.html",
+        {
+            "email": email,
+            "csrf_token": get_csrf_token(request),
+        },
+    )
 
 
 @router.post("/verify", response_class=HTMLResponse)
@@ -162,11 +182,15 @@ async def verify_submit(
     try:
         _require_csrf(request, {"csrf_token": csrf_token})
     except HTTPException:
-        return templates.TemplateResponse(request, "verify.html", {
-            "email": email,
-            "error": "CSRF 验证失败，请刷新页面重试",
-            "csrf_token": get_csrf_token(request),
-        })
+        return templates.TemplateResponse(
+            request,
+            "verify.html",
+            {
+                "email": email,
+                "error": "CSRF 验证失败，请刷新页面重试",
+                "csrf_token": get_csrf_token(request),
+            },
+        )
 
     email = email.strip().lower()
     token = token.strip()
@@ -182,11 +206,15 @@ async def verify_submit(
         )
         row = await cursor.fetchone()
         if not row:
-            return templates.TemplateResponse(request, "verify.html", {
-                "email": email,
-                "error": "验证码无效或已过期",
-                "csrf_token": get_csrf_token(request),
-            })
+            return templates.TemplateResponse(
+                request,
+                "verify.html",
+                {
+                    "email": email,
+                    "error": "验证码无效或已过期",
+                    "csrf_token": get_csrf_token(request),
+                },
+            )
 
         await db.execute("UPDATE verification_tokens SET used = 1 WHERE id = ?", (row["id"],))
         await db.execute(
@@ -200,12 +228,16 @@ async def verify_submit(
         await db.close()
 
     # 生成 session 并设置 cookie
-    resp = templates.TemplateResponse(request, "verify.html", {
-        "email": email,
-        "api_key": api_key,
-        "success": True,
-        "csrf_token": get_csrf_token(request),
-    })
+    resp = templates.TemplateResponse(
+        request,
+        "verify.html",
+        {
+            "email": email,
+            "api_key": api_key,
+            "success": True,
+            "csrf_token": get_csrf_token(request),
+        },
+    )
     _set_session_cookie(resp, email)
     return resp
 
@@ -216,9 +248,13 @@ async def login_page(request: Request):
     email = get_session_email(request)
     if email:
         return RedirectResponse("/dashboard", status_code=303)
-    return templates.TemplateResponse(request, "login.html", {
-        "csrf_token": get_csrf_token(request),
-    })
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {
+            "csrf_token": get_csrf_token(request),
+        },
+    )
 
 
 @router.post("/login", response_class=HTMLResponse)
@@ -231,10 +267,14 @@ async def login_submit(
     """登录提交"""
     session = get_session(request)
     if session and not hmac.compare_digest(csrf_token, session.get("csrf", "")):
-        return templates.TemplateResponse(request, "login.html", {
-            "error": "CSRF 验证失败",
-            "csrf_token": session.get("csrf", ""),
-        })
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {
+                "error": "CSRF 验证失败",
+                "csrf_token": session.get("csrf", ""),
+            },
+        )
 
     email = email.strip().lower()
     key = key.strip()
@@ -246,10 +286,14 @@ async def login_submit(
             (key, email),
         )
         if not await cursor.fetchone():
-            return templates.TemplateResponse(request, "login.html", {
-                "error": "邮箱与 API Key 不匹配",
-                "csrf_token": get_csrf_token(request),
-            })
+            return templates.TemplateResponse(
+                request,
+                "login.html",
+                {
+                    "error": "邮箱与 API Key 不匹配",
+                    "csrf_token": get_csrf_token(request),
+                },
+            )
     finally:
         await db.close()
 
@@ -275,18 +319,26 @@ async def dashboard(request: Request):
     finally:
         await db.close()
 
-    sites = [{
-        "shortcode": r["shortcode"],
-        "title": r["title"] or "无标题",
-        "url": f"https://static.jaschen.life/{r['shortcode']}",
-        "size_bytes": r["size_bytes"],
-        "created_at": r["created_at"],
-    } for r in rows]
+    sites = [
+        {
+            "shortcode": r["shortcode"],
+            "title": r["title"] or "无标题",
+            "url": f"https://static.jaschen.life/{r['shortcode']}",
+            "size_bytes": r["size_bytes"],
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
 
-    return templates.TemplateResponse(request, "dashboard.html", {
-        "email": email, "sites": sites,
-        "csrf_token": get_csrf_token(request),
-    })
+    return templates.TemplateResponse(
+        request,
+        "dashboard.html",
+        {
+            "email": email,
+            "sites": sites,
+            "csrf_token": get_csrf_token(request),
+        },
+    )
 
 
 @router.post("/delete/{shortcode}")
@@ -340,11 +392,13 @@ async def logout():
 async def cli_download():
     """CLI 工具下载"""
     import os
+
     # Docker: /app/staticcli.py  |  本地: app/staticcli.py
     for path in ["staticcli.py", os.path.join(os.path.dirname(__file__), "..", "staticcli.py")]:
         if os.path.exists(path):
             with open(path) as f:
                 content = f.read()
             from fastapi.responses import PlainTextResponse
+
             return PlainTextResponse(content, media_type="text/x-python")
     return HTMLResponse(content="<h1>CLI 暂不可用</h1>", status_code=404)
