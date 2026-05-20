@@ -363,6 +363,19 @@ footer a:hover { color: var(--text); }
 
 .card-cli pre { margin: 0; }
 
+/* ─── Lock/Unlock Icons ────────────────────── */
+
+.lock-icon {
+  display: inline-block;
+  margin-left: .3rem;
+  font-size: .85em;
+}
+
+.unlock-icon {
+  font-size: 3rem;
+  margin-bottom: .5rem;
+}
+
 /* ─── Responsive ───────────────────────────── */
 
 @media (max-width: 480px) {

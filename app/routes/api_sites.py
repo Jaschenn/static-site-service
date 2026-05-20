@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from config import MAX_UPLOAD_SIZE, SITES_DIR
 from database import get_db
+from services.password import hash_password
 from services.shortcode import generate_shortcode
 
 router = APIRouter(prefix="/api/sites", tags=["sites"])
@@ -73,6 +74,9 @@ async def publish_site(request: Request):
 
     email = await verify_api_key(api_key)
 
+    # 读密码（可选）
+    site_password = request.headers.get("X-Site-Password", "") or None
+
     # 确保目录存在
     os.makedirs(SITES_DIR, exist_ok=True)
 
@@ -98,10 +102,13 @@ async def publish_site(request: Request):
         title = extract_title(html)
         size = len(body)
 
+        # 密码哈希
+        password_hash = hash_password(site_password) if site_password else None
+
         # 写数据库
         await db.execute(
-            "INSERT INTO sites (shortcode, email, title, size_bytes) VALUES (?, ?, ?, ?)",
-            (shortcode, email, title, size),
+            "INSERT INTO sites (shortcode, email, title, size_bytes, password_hash) VALUES (?, ?, ?, ?, ?)",
+            (shortcode, email, title, size, password_hash),
         )
         await db.commit()
 
@@ -110,6 +117,7 @@ async def publish_site(request: Request):
             "url": f"https://static.jaschen.life/{shortcode}",
             "title": title,
             "size_bytes": size,
+            "has_password": bool(password_hash),
         }
 
     finally:
@@ -131,7 +139,8 @@ async def list_sites(request: Request):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT shortcode, title, size_bytes, created_at FROM sites WHERE email = ? ORDER BY created_at DESC",
+            "SELECT shortcode, title, size_bytes, created_at, password_hash "
+            "FROM sites WHERE email = ? ORDER BY created_at DESC",
             (email,),
         )
         rows = await cursor.fetchall()
@@ -145,6 +154,7 @@ async def list_sites(request: Request):
                     "title": row["title"],
                     "size_bytes": row["size_bytes"],
                     "created_at": row["created_at"],
+                    "has_password": bool(row["password_hash"]),
                 }
             )
 

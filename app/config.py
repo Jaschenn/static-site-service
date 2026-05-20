@@ -25,3 +25,6 @@ TOKEN_EXPIRY = int(os.getenv("TOKEN_EXPIRY", 600))
 
 # Session 密钥（生产环境请务必修改）
 SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me-in-production")
+
+# 密码保护 unlock cookie 有效期（秒），默认 24 小时
+UNLOCK_TTL = int(os.getenv("UNLOCK_TTL", 86400))

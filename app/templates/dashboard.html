@@ -24,7 +24,7 @@
   {% for site in sites %}
   <div class="site-item">
     <div class="site-info">
-      <div class="site-title">{{ site.title }}</div>
+      <div class="site-title">{{ site.title }}{% if site.has_password %}<span class="lock-icon">🔒</span>{% endif %}</div>
       <div class="site-meta">
         <a href="{{ site.url }}" target="_blank" class="site-url">{{ site.shortcode }}</a>
         <span>{{ "%.1f"|format(site.size_bytes / 1024) }} KB</span>

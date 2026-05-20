@@ -3,10 +3,12 @@
 import os
 import re
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from config import SITES_DIR
+from database import get_db
+from services.password import verify_unlock_cookie
 
 router = APIRouter(tags=["serve"])
 
@@ -23,6 +25,7 @@ RESERVED_PATHS = {
     "static",
     "delete",
     "health",
+    "unlock",
 }
 
 
@@ -58,7 +61,7 @@ a { color: #0070f3; text-decoration: none; }
 
 
 @router.get("/{shortcode}", response_class=HTMLResponse)
-async def serve_site(shortcode: str):
+async def serve_site(shortcode: str, request: Request):
     """Serve 发布的静态 HTML"""
 
     # 保留路径检查
@@ -74,6 +77,22 @@ async def serve_site(shortcode: str):
     # 查文件是否存在
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="页面不存在")
+
+    # 检查密码保护
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT password_hash FROM sites WHERE shortcode = ?",
+            (shortcode,),
+        )
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if row and row["password_hash"]:
+        unlock_token = request.cookies.get("site_unlock", "")
+        if not unlock_token or not verify_unlock_cookie(unlock_token, shortcode):
+            return RedirectResponse(f"/unlock/{shortcode}", status_code=302)
 
     # 读文件
     with open(filepath, encoding="utf-8") as f:

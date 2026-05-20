@@ -54,6 +54,13 @@ async def init_db():
             CREATE INDEX IF NOT EXISTS idx_api_keys_email ON api_keys(email);
             CREATE INDEX IF NOT EXISTS idx_verification_email ON verification_tokens(email);
         """)
+
+        # 迁移：添加 password_hash 列
+        try:
+            await db.execute("ALTER TABLE sites ADD COLUMN password_hash TEXT DEFAULT NULL")
+        except Exception:
+            pass  # 列已存在
+
         await db.commit()
     finally:
         await db.close()

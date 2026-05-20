@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 
 from config import SESSION_SECRET
 from database import get_db
+from services.password import UNLOCK_COOKIE_OPTS, make_unlock_cookie, verify_password
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory="templates")
@@ -312,7 +313,8 @@ async def dashboard(request: Request):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT shortcode, title, size_bytes, created_at FROM sites WHERE email = ? ORDER BY created_at DESC",
+            "SELECT shortcode, title, size_bytes, created_at, password_hash "
+            "FROM sites WHERE email = ? ORDER BY created_at DESC",
             (email,),
         )
         rows = await cursor.fetchall()
@@ -326,6 +328,7 @@ async def dashboard(request: Request):
             "url": f"https://static.jaschen.life/{r['shortcode']}",
             "size_bytes": r["size_bytes"],
             "created_at": r["created_at"],
+            "has_password": bool(r["password_hash"]),
         }
         for r in rows
     ]
@@ -378,6 +381,98 @@ async def delete_site_web(shortcode: str, request: Request):
         await db.close()
 
     return RedirectResponse("/dashboard", status_code=303)
+
+
+@router.get("/unlock/{shortcode}", response_class=HTMLResponse)
+async def unlock_page(request: Request, shortcode: str):
+    """密码解锁页"""
+    import re
+
+    if not re.match(r"^[a-zA-Z0-9]{8}$", shortcode):
+        raise HTTPException(status_code=404, detail="页面不存在")
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT password_hash FROM sites WHERE shortcode = ?",
+            (shortcode,),
+        )
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not row or not row["password_hash"]:
+        # 无密码保护 → 直接跳转到页面
+        return RedirectResponse(f"/{shortcode}", status_code=302)
+
+    return templates.TemplateResponse(
+        request,
+        "unlock.html",
+        {
+            "shortcode": shortcode,
+        },
+    )
+
+
+@router.post("/unlock/{shortcode}")
+async def unlock_submit(request: Request, shortcode: str):
+    """解锁提交"""
+    import re
+
+    from ratelimit import RateLimiter
+
+    if not re.match(r"^[a-zA-Z0-9]{8}$", shortcode):
+        raise HTTPException(status_code=404, detail="页面不存在")
+
+    # 速率限制：每 IP 每分钟 5 次
+    unlock_limiter = RateLimiter(max_requests=5, window_seconds=60)
+    try:
+        await unlock_limiter(request)
+    except Exception as e:
+        return templates.TemplateResponse(
+            request,
+            "unlock.html",
+            {
+                "shortcode": shortcode,
+                "error": str(e.detail) if hasattr(e, "detail") else "请求太频繁，请稍后再试",
+            },
+        )
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT password_hash FROM sites WHERE shortcode = ?",
+            (shortcode,),
+        )
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not row or not row["password_hash"]:
+        return RedirectResponse(f"/{shortcode}", status_code=302)
+
+    form_data = await request.form()
+    password = form_data.get("password", "")
+
+    if not verify_password(password, row["password_hash"]):
+        return templates.TemplateResponse(
+            request,
+            "unlock.html",
+            {
+                "shortcode": shortcode,
+                "error": "密码错误",
+            },
+            status_code=401,
+        )
+
+    # 密码正确 → 设 cookie 并跳转
+    resp = RedirectResponse(f"/{shortcode}", status_code=303)
+    resp.set_cookie(
+        key="site_unlock",
+        value=make_unlock_cookie(shortcode),
+        **UNLOCK_COOKIE_OPTS,
+    )
+    return resp
 
 
 @router.get("/logout")

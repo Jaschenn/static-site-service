@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}需要密码 — static.jaschen.life{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <div class="unlock-icon">🔒</div>
+  <h1>此页面已加密</h1>
+  <p class="subtitle">请输入发布者设置的密码以查看内容</p>
+</div>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="card">
+  <form method="POST" action="/unlock/{{ shortcode }}">
+    <div class="form-group">
+      <label for="password">密码</label>
+      <input
+        type="password"
+        id="password"
+        name="password"
+        placeholder="请输入密码"
+        autofocus
+        required
+      >
+    </div>
+    <button type="submit" class="btn btn-primary">解锁</button>
+  </form>
+</div>
+
+{% endblock %}
