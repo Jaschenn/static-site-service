@@ -35,6 +35,11 @@ jobs:
             echo ">>> Cleaning up old images..."
             docker image prune -f
 
+            echo ">>> Updating nginx config..."
+            sudo cp nginx/nginx-site.conf /etc/nginx/sites-available/static.jaschen.life
+            sudo nginx -t
+            sudo systemctl reload nginx
+
             echo ">>> Waiting for health check..."
             sleep 3
-            curl -f -s -o /dev/null https://static.jaschen.life/404 && echo "Health check OK" || echo "Health check FAILED"
+            curl -f -s -o /dev/null https://static.jaschen.life/login && echo "Health check OK" || echo "Health check FAILED"
